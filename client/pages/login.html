@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Store Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="login-page">
+    <div class="login-card">
+        <div class="logo-section">
+            <div class="icon">🏪</div>
+            <h2>Store Manager</h2>
+            <p>Hệ thống Quản lý Cửa hàng Bán lẻ</p>
+        </div>
+
+        <div id="loginError" class="login-error"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label class="form-label" for="username">Tên đăng nhập</label>
+                <div class="search-input" style="width: 100%;">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="username" class="form-control" placeholder="admin / manager01 / cashier01" required autofocus>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">Mật khẩu</label>
+                <div class="search-input" style="width: 100%;">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" class="form-control" placeholder="Nhập mật khẩu" required>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px; font-size: 0.8rem; color: var(--text-muted);">
+                <p>💡 Tài khoản mẫu demo:</p>
+                <ul style="padding-left: 20px; margin-top: 4px;">
+                    <li><strong>admin</strong> / admin123 (Toàn quyền)</li>
+                    <li><strong>manager01</strong> / manager123 (Quản lý)</li>
+                    <li><strong>cashier01</strong> / cashier123 (Thu ngân)</li>
+                </ul>
+            </div>
+
+            <button type="submit" id="btnLogin" class="btn btn-primary btn-block btn-lg">
+                <i class="fas fa-sign-in-alt"></i> Đăng nhập
+            </button>
+        </form>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('loginError');
+            const btn = document.getElementById('btnLogin');
+
+            errorDiv.style.display = 'none';
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang đăng nhập...';
+
+            try {
+                const res = await api.post('/auth/login', { username, password });
+                if (res.success) {
+                    sessionStorage.setItem('user', JSON.stringify(res.data));
+                    window.location.href = '../index.html';
+                } else {
+                    errorDiv.innerText = res.message || 'Đăng nhập không thành công.';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                errorDiv.innerText = err.message || 'Không thể kết nối đến máy chủ.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Đăng nhập';
+            }
+        });
+    </script>
+</body>
+</html>

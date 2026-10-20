@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhập Hàng - Store Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <aside id="sidebar" class="sidebar"></aside>
+
+        <main class="main-content">
+            <div class="top-bar">
+                <div>
+                    <h1>Quản lý Nhập Hàng</h1>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Nhập kho tự động tăng tồn qua Stored Procedure <code>sp_ImportGoods</code> (Kỹ thuật MERGE & Upsert)</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-outline" id="btnTabList" onclick="switchTab('list')">
+                        <i class="fas fa-list"></i> Lịch sử nhập hàng
+                    </button>
+                    <button class="btn btn-primary" id="btnTabCreate" onclick="switchTab('create')">
+                        <i class="fas fa-plus"></i> Tạo phiếu nhập mới
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 1: Tạo phiếu nhập mới -->
+            <div id="tabCreate" style="display: none;">
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h3><i class="fas fa-file-invoice" style="color: var(--accent); margin-right: 8px;"></i> Thông tin phiếu nhập kho</h3>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="poSupplier">Nhà cung cấp *</label>
+                            <select id="poSupplier" class="form-control" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="poEmployee">Nhân viên tiếp nhận *</label>
+                            <select id="poEmployee" class="form-control" required></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-boxes" style="color: var(--warning); margin-right: 8px;"></i> Danh sách mặt hàng nhập kho</h3>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="addPurchaseRow()">
+                            <i class="fas fa-plus"></i> Thêm dòng mặt hàng
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="purchase-items-table">
+                            <thead>
+                                <tr>
+                                    <th style="min-width: 250px;">Sản phẩm</th>
+                                    <th style="width: 140px;">Số lượng nhập</th>
+                                    <th style="width: 180px;">Đơn giá nhập (VNĐ)</th>
+                                    <th style="width: 180px; text-align: right;">Thành tiền</th>
+                                    <th style="width: 60px; text-align: center;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="purchaseItemsBody">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-light); gap: 20px;">
+                        <div style="font-size: 1.1rem;">
+                            Tổng tiền nhập: <strong id="purchaseTotalDisplay" style="color: var(--accent); font-size: 1.4rem;">0 đ</strong>
+                        </div>
+                        <button class="btn btn-success btn-lg" id="btnSubmitPO" onclick="submitPurchaseOrder()">
+                            <i class="fas fa-check-circle"></i> Xác nhận nhập kho
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: Danh sách lịch sử phiếu nhập -->
+            <div id="tabList">
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã phiếu</th>
+                                    <th>Nhà cung cấp</th>
+                                    <th>Nhân viên lập</th>
+                                    <th>Ngày nhập</th>
+                                    <th>Tổng giá trị</th>
+                                    <th>Trạng thái</th>
+                                    <th style="text-align: center;">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="poTableBody">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">
+                                        Đang tải lịch sử nhập hàng...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Chi tiết Phiếu nhập -->
+    <div id="poDetailModal" class="modal-overlay">
+        <div class="modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3 id="poModalTitle">Chi tiết phiếu nhập hàng</h3>
+                <button class="modal-close" onclick="closeModal('poDetailModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="poDetailContent">
+                <!-- Details table rendered dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('poDetailModal')">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/common.js"></script>
+    <script>
+        let suppliersList = [];
+        let employeesList = [];
+        let productsList = [];
+        let rowCount = 0;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = await checkAuth();
+            if (!user) return;
+            initSidebar();
+
+            await loadMasterData();
+            await loadPurchaseOrders();
+            addPurchaseRow(); // Add initial blank row in create form
+        });
+
+        function switchTab(tab) {
+            if (tab === 'create') {
+                document.getElementById('tabCreate').style.display = 'block';
+                document.getElementById('tabList').style.display = 'none';
+                document.getElementById('btnTabCreate').className = 'btn btn-primary';
+                document.getElementById('btnTabList').className = 'btn btn-outline';
+            } else {
+                document.getElementById('tabCreate').style.display = 'none';
+                document.getElementById('tabList').style.display = 'block';
+                document.getElementById('btnTabCreate').className = 'btn btn-outline';
+                document.getElementById('btnTabList').className = 'btn btn-primary';
+                loadPurchaseOrders();
+            }
+        }
+
+        async function loadMasterData() {
+            try {
+                const [supRes, empRes, prodRes] = await Promise.all([
+                    api.get('/suppliers'),
+                    api.get('/employees'),
+                    api.get('/products?pageSize=200')
+                ]);
+
+                if (supRes.success) {
+                    suppliersList = supRes.data;
+                    document.getElementById('poSupplier').innerHTML = 
+                        suppliersList.map(s => `<option value="${s.SupplierID}">${s.SupplierName} (${s.SupplierCode})</option>`).join('');
+                }
+
+                if (empRes.success) {
+                    employeesList = empRes.data;
+                    const user = getCurrentUser();
+                    document.getElementById('poEmployee').innerHTML = 
+                        employeesList.map(e => `
+                            <option value="${e.EmployeeID}" ${user && user.employeeID === e.EmployeeID ? 'selected' : ''}>
+                                ${e.FullName} (${e.EmployeeCode})
+                            </option>
+                        `).join('');
+                }
+
+                if (prodRes.success) {
+                    productsList = prodRes.data;
+                }
+            } catch (err) {
+                console.error('Lỗi master data:', err);
+            }
+        }
+
+        async function loadPurchaseOrders() {
+            showLoading();
+            try {
+                const res = await api.get('/purchases');
+                if (res.success) {
+                    renderPOTable(res.data || []);
+                }
+            } catch (err) {
+                showToast('Lỗi tải phiếu nhập: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderPOTable(orders) {
+            const tbody = document.getElementById('poTableBody');
+            if (orders.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                            Chưa có phiếu nhập kho nào.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = orders.map(po => `
+                <tr>
+                    <td><code>${po.POCode}</code></td>
+                    <td style="font-weight: 500;">${po.SupplierName}</td>
+                    <td>${po.EmployeeName}</td>
+                    <td>${formatDateTime(po.OrderDate)}</td>
+                    <td style="font-weight: 600; color: var(--accent);">${formatCurrency(po.TotalAmount)}</td>
+                    <td><span class="badge badge-success">${po.Status}</span></td>
+                    <td style="text-align: center;">
+                        <button class="btn btn-outline btn-sm" onclick="viewPODetail(${po.PurchaseOrderID})">
+                            <i class="fas fa-eye"></i> Xem chi tiết
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function viewPODetail(id) {
+            showLoading();
+            try {
+                const res = await api.get(`/purchases/${id}`);
+                if (res.success && res.data) {
+                    const po = res.data;
+                    document.getElementById('poModalTitle').innerText = `Phiếu Nhập: ${po.POCode}`;
+                    document.getElementById('poDetailContent').innerHTML = `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; font-size: 0.85rem;">
+                            <div><strong>Nhà cung cấp:</strong> ${po.SupplierName}</div>
+                            <div><strong>Ngày nhập:</strong> ${formatDateTime(po.OrderDate)}</div>
+                            <div><strong>Người tiếp nhận:</strong> ${po.EmployeeName}</div>
+                            <div><strong>Tổng giá trị:</strong> <span style="color:var(--accent); font-weight:700;">${formatCurrency(po.TotalAmount)}</span></div>
+                        </div>
+
+                        <table style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Mã SP</th>
+                                    <th>Tên sản phẩm</th>
+                                    <th style="text-align: center;">Số lượng</th>
+                                    <th style="text-align: right;">Đơn giá nhập</th>
+                                    <th style="text-align: right;">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${(po.details || []).map(d => `
+                                    <tr>
+                                        <td><code>${d.ProductCode}</code></td>
+                                        <td>${d.ProductName}</td>
+                                        <td style="text-align: center; font-weight: 600;">${d.Quantity} ${d.Unit || ''}</td>
+                                        <td style="text-align: right;">${formatCurrency(d.UnitPrice)}</td>
+                                        <td style="text-align: right; font-weight: 600;">${formatCurrency(d.LineTotal)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    openModal('poDetailModal');
+                }
+            } catch (err) {
+                showToast('Lỗi xem chi tiết: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ================= PO Form Rows ================= //
+        function addPurchaseRow() {
+            rowCount++;
+            const tbody = document.getElementById('purchaseItemsBody');
+            const tr = document.createElement('tr');
+            tr.id = `poRow_${rowCount}`;
+
+            const prodOptions = productsList.map(p => 
+                `<option value="${p.ProductID}" data-cost="${p.CostPrice}">${p.ProductName} (${p.ProductCode}) - Giá vốn hiện tại: ${formatCurrency(p.CostPrice)}</option>`
+            ).join('');
+
+            tr.innerHTML = `
+                <td>
+                    <select class="form-control po-prod-select" onchange="onProductSelectChange(this, ${rowCount})">
+                        <option value="">-- Chọn sản phẩm --</option>
+                        ${prodOptions}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" class="form-control po-qty-input" min="1" value="10" oninput="calculateRowTotal(${rowCount})">
+                </td>
+                <td>
+                    <input type="number" class="form-control po-price-input" min="0" step="1000" value="0" oninput="calculateRowTotal(${rowCount})">
+                </td>
+                <td style="text-align: right; font-weight: 600;" class="po-line-total">0 đ</td>
+                <td style="text-align: center;">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removePurchaseRow(${rowCount})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        }
+
+        function removePurchaseRow(id) {
+            const row = document.getElementById(`poRow_${id}`);
+            if (row) row.remove();
+            calculateGrandTotal();
+        }
+
+        function onProductSelectChange(selectEl, rowId) {
+            const selectedOpt = selectEl.options[selectEl.selectedIndex];
+            const defaultCost = selectedOpt ? selectedOpt.getAttribute('data-cost') : 0;
+            const row = document.getElementById(`poRow_${rowId}`);
+            if (row) {
+                row.querySelector('.po-price-input').value = defaultCost || 0;
+                calculateRowTotal(rowId);
+            }
+        }
+
+        function calculateRowTotal(rowId) {
+            const row = document.getElementById(`poRow_${rowId}`);
+            if (!row) return;
+
+            const qty = parseFloat(row.querySelector('.po-qty-input').value) || 0;
+            const price = parseFloat(row.querySelector('.po-price-input').value) || 0;
+            const total = qty * price;
+
+            row.querySelector('.po-line-total').innerText = formatCurrency(total);
+            calculateGrandTotal();
+        }
+
+        function calculateGrandTotal() {
+            const rows = document.querySelectorAll('#purchaseItemsBody tr');
+            let grandTotal = 0;
+            rows.forEach(r => {
+                const qty = parseFloat(r.querySelector('.po-qty-input')?.value) || 0;
+                const price = parseFloat(r.querySelector('.po-price-input')?.value) || 0;
+                grandTotal += (qty * price);
+            });
+            document.getElementById('purchaseTotalDisplay').innerText = formatCurrency(grandTotal);
+        }
+
+        async function submitPurchaseOrder() {
+            const supplierId = parseInt(document.getElementById('poSupplier').value);
+            const employeeId = parseInt(document.getElementById('poEmployee').value);
+
+            const rows = document.querySelectorAll('#purchaseItemsBody tr');
+            const items = [];
+
+            for (const r of rows) {
+                const prodId = parseInt(r.querySelector('.po-prod-select')?.value);
+                const qty = parseInt(r.querySelector('.po-qty-input')?.value);
+                const price = parseFloat(r.querySelector('.po-price-input')?.value);
+
+                if (!prodId) {
+                    showToast('Vui lòng chọn sản phẩm cho tất cả các dòng!', 'warning');
+                    return;
+                }
+                if (qty <= 0 || price < 0) {
+                    showToast('Số lượng và đơn vị giá phải hợp lệ!', 'warning');
+                    return;
+                }
+
+                items.push({ productId: prodId, quantity: qty, unitPrice: price });
+            }
+
+            if (items.length === 0) {
+                showToast('Chưa có sản phẩm nào trong phiếu nhập!', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('btnSubmitPO');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý nhập kho...';
+
+            try {
+                const res = await api.post('/purchases', {
+                    supplierID: supplierId,
+                    employeeID: employeeId,
+                    items: items
+                });
+
+                if (res.success) {
+                    showToast(`Nhập hàng thành công! Mã phiếu: ${res.data.POCode}`);
+                    // Reset form
+                    document.getElementById('purchaseItemsBody').innerHTML = '';
+                    rowCount = 0;
+                    addPurchaseRow();
+                    calculateGrandTotal();
+                    switchTab('list');
+                }
+            } catch (err) {
+                showToast('Lỗi nhập hàng: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check-circle"></i> Xác nhận nhập kho';
+            }
+        }
+    </script>
+</body>
+</html>

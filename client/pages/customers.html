@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Khách hàng - Store Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <aside id="sidebar" class="sidebar"></aside>
+
+        <main class="main-content">
+            <div class="top-bar">
+                <div>
+                    <h1>Quản lý Khách hàng</h1>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Tra cứu thông tin, điểm chi tiêu và lịch sử giao dịch</p>
+                </div>
+                <button class="btn btn-primary" onclick="openAddModal()">
+                    <i class="fas fa-user-plus"></i> Thêm khách hàng mới
+                </button>
+            </div>
+
+            <!-- Filter & Search Bar -->
+            <div class="filter-bar">
+                <div class="search-input" style="max-width: 400px;">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Tìm theo tên, số điện thoại hoặc mã KH...">
+                </div>
+                <button class="btn btn-primary" onclick="loadCustomers()">
+                    <i class="fas fa-search"></i> Tìm kiếm
+                </button>
+                <button class="btn btn-outline" onclick="resetSearch()">
+                    <i class="fas fa-undo"></i> Đặt lại
+                </button>
+            </div>
+
+            <!-- Customers Table Card -->
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã KH</th>
+                                <th>Họ và tên</th>
+                                <th>Số điện thoại</th>
+                                <th>Email</th>
+                                <th>Địa chỉ</th>
+                                <th>Tổng chi tiêu</th>
+                                <th>Ngày đăng ký</th>
+                                <th style="text-align: center;">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">
+                                    Đang nạp dữ liệu khách hàng...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Thêm / Chỉnh sửa Khách hàng -->
+    <div id="customerModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Thêm khách hàng mới</h3>
+                <button class="modal-close" onclick="closeModal('customerModal')">&times;</button>
+            </div>
+            <form id="customerForm">
+                <div class="modal-body">
+                    <input type="hidden" id="editCustomerId">
+
+                    <div class="form-group">
+                        <label class="form-label" for="custName">Họ và tên *</label>
+                        <input type="text" id="custName" class="form-control" placeholder="Nguyễn Văn A" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="custPhone">Số điện thoại * (bắt đầu bằng số 0)</label>
+                        <input type="tel" id="custPhone" class="form-control" placeholder="0901234567" pattern="0[0-9]{9,11}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="custEmail">Email</label>
+                        <input type="email" id="custEmail" class="form-control" placeholder="email@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="custAddress">Địa chỉ</label>
+                        <input type="text" id="custAddress" class="form-control" placeholder="Số nhà, đường, quận/huyện...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('customerModal')">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveCustomer">
+                        <i class="fas fa-save"></i> Lưu thông tin
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/common.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = await checkAuth();
+            if (!user) return;
+            initSidebar();
+
+            await loadCustomers();
+
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') loadCustomers();
+            });
+
+            document.getElementById('customerForm').addEventListener('submit', handleSaveCustomer);
+        });
+
+        async function loadCustomers() {
+            showLoading();
+            const keyword = document.getElementById('searchInput').value.trim();
+            try {
+                let url = '/customers';
+                if (keyword) url += `?keyword=${encodeURIComponent(keyword)}`;
+
+                const res = await api.get(url);
+                if (res.success) {
+                    renderTable(res.data || []);
+                }
+            } catch (err) {
+                showToast('Lỗi tải khách hàng: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderTable(customers) {
+            const tbody = document.getElementById('customersTableBody');
+            if (customers.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                            <i class="fas fa-user-slash" style="font-size: 2rem; margin-bottom: 8px; display: block;"></i>
+                            Không tìm thấy khách hàng nào phù hợp.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = customers.map(c => `
+                <tr>
+                    <td><code>${c.CustomerCode}</code></td>
+                    <td style="font-weight: 500;">${c.FullName}</td>
+                    <td><strong style="color: var(--accent);">${c.Phone}</strong></td>
+                    <td>${c.Email || '<span style="color:var(--text-muted)">-</span>'}</td>
+                    <td>${c.Address || '<span style="color:var(--text-muted)">-</span>'}</td>
+                    <td style="font-weight: 600; color: var(--success);">${formatCurrency(c.TotalSpent)}</td>
+                    <td>${formatDate(c.CreatedAt)}</td>
+                    <td style="text-align: center;">
+                        <button class="btn btn-outline btn-sm" onclick="openEditModal(${c.CustomerID})" title="Sửa">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.CustomerID}, '${c.FullName.replace(/'/g, "\\'")}')" title="Xóa">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function resetSearch() {
+            document.getElementById('searchInput').value = '';
+            loadCustomers();
+        }
+
+        function openAddModal() {
+            document.getElementById('modalTitle').innerText = 'Thêm khách hàng mới';
+            document.getElementById('editCustomerId').value = '';
+            document.getElementById('custName').value = '';
+            document.getElementById('custPhone').value = '';
+            document.getElementById('custEmail').value = '';
+            document.getElementById('custAddress').value = '';
+            openModal('customerModal');
+        }
+
+        async function openEditModal(customerId) {
+            showLoading();
+            try {
+                const res = await api.get(`/customers/${customerId}`);
+                if (res.success && res.data) {
+                    const c = res.data;
+                    document.getElementById('modalTitle').innerText = 'Chỉnh sửa khách hàng';
+                    document.getElementById('editCustomerId').value = c.CustomerID;
+                    document.getElementById('custName').value = c.FullName;
+                    document.getElementById('custPhone').value = c.Phone;
+                    document.getElementById('custEmail').value = c.Email || '';
+                    document.getElementById('custAddress').value = c.Address || '';
+                    openModal('customerModal');
+                }
+            } catch (err) {
+                showToast('Lỗi nạp dữ liệu: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function handleSaveCustomer(e) {
+            e.preventDefault();
+            const editId = document.getElementById('editCustomerId').value;
+            const payload = {
+                fullName: document.getElementById('custName').value.trim(),
+                phone: document.getElementById('custPhone').value.trim(),
+                email: document.getElementById('custEmail').value.trim() || null,
+                address: document.getElementById('custAddress').value.trim() || null
+            };
+
+            const btn = document.getElementById('btnSaveCustomer');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+
+            try {
+                if (editId) {
+                    const res = await api.put(`/customers/${editId}`, payload);
+                    if (res.success) {
+                        showToast('Cập nhật khách hàng thành công!');
+                        closeModal('customerModal');
+                        await loadCustomers();
+                    }
+                } else {
+                    const res = await api.post('/customers', payload);
+                    if (res.success) {
+                        showToast(`Thêm khách hàng ${res.data.customerCode} thành công!`);
+                        closeModal('customerModal');
+                        await loadCustomers();
+                    }
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save"></i> Lưu thông tin';
+            }
+        }
+
+        async function deleteCustomer(customerId, customerName) {
+            if (!confirm(`Bạn có chắc muốn xóa khách hàng "${customerName}"?`)) return;
+
+            showLoading();
+            try {
+                const res = await api.delete(`/customers/${customerId}`);
+                if (res.success) {
+                    showToast('Đã xóa khách hàng thành công!');
+                    await loadCustomers();
+                }
+            } catch (err) {
+                showToast('Lỗi khi xóa: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+    </script>
+</body>
+</html>

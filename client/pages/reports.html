@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo Cáo & Thống Kê - Store Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <aside id="sidebar" class="sidebar"></aside>
+
+        <main class="main-content">
+            <div class="top-bar">
+                <div>
+                    <h1>Báo Cáo Doanh Thu & Thống Kê</h1>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Trực quan hóa SQL: View <code>vw_RevenueByDate</code>, UDF <code>fn_GetTopSellingProducts</code>, và Cursor <code>sp_MonthlyReport</code></p>
+                </div>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div class="filter-bar" style="border-bottom: 1px solid var(--border-light); padding-bottom: 14px;">
+                <button class="btn btn-primary" id="tabBtnRevenue" onclick="selectReportTab('revenue')">
+                    <i class="fas fa-chart-line"></i> Doanh thu theo ngày
+                </button>
+                <button class="btn btn-outline" id="tabBtnTop" onclick="selectReportTab('top')">
+                    <i class="fas fa-award"></i> Top sản phẩm bán chạy (UDF)
+                </button>
+                <button class="btn btn-outline" id="tabBtnCursor" onclick="selectReportTab('cursor')">
+                    <i class="fas fa-sync-alt"></i> Báo cáo chu kỳ tháng (CURSOR)
+                </button>
+            </div>
+
+            <!-- TAB 1: DOANH THU THEO NGÀY (VIEW vw_RevenueByDate) -->
+            <div id="sectionRevenue">
+                <div class="filter-bar">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">Từ ngày:</span>
+                        <input type="date" id="revFromDate" class="form-control" style="width: 170px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">Đến ngày:</span>
+                        <input type="date" id="revToDate" class="form-control" style="width: 170px;">
+                    </div>
+                    <button class="btn btn-primary" onclick="loadRevenueReport()">
+                        <i class="fas fa-filter"></i> Xem báo cáo
+                    </button>
+                </div>
+
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h3><i class="fas fa-chart-bar" style="color: var(--accent); margin-right: 8px;"></i> Biểu đồ doanh thu theo ngày</h3>
+                        <span id="revTotalSummaryBadge" class="badge badge-success" style="font-size: 0.85rem; padding: 6px 12px;">Tổng: 0 đ</span>
+                    </div>
+                    <div style="height: 300px;">
+                        <canvas id="revChartCanvas"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Ngày bán</th>
+                                    <th style="text-align: center;">Số lượng hóa đơn</th>
+                                    <th style="text-align: right;">Tổng chiết khấu</th>
+                                    <th style="text-align: right;">Doanh thu thực thu</th>
+                                </tr>
+                            </thead>
+                            <tbody id="revTableBody">
+                                <!-- Data rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: TOP SẢN PHẨM BÁN CHẠY (UDF fn_GetTopSellingProducts) -->
+            <div id="sectionTop" style="display: none;">
+                <div class="filter-bar">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">Số lượng Top:</span>
+                        <select id="topNSelect" class="form-control" style="width: 120px;" onchange="loadTopProductsReport()">
+                            <option value="5">Top 5</option>
+                            <option value="10" selected>Top 10</option>
+                            <option value="20">Top 20</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="loadTopProductsReport()">
+                        <i class="fas fa-sync"></i> Làm mới
+                    </button>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-pie" style="color: var(--info); margin-right: 8px;"></i> Doanh thu theo sản phẩm</h3>
+                        </div>
+                        <div style="height: 320px;">
+                            <canvas id="topProductsCanvas"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Bảng chi tiết (UDF <code>fn_GetTopSellingProducts</code>)</h3>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Mã SP</th>
+                                        <th>Tên sản phẩm</th>
+                                        <th>Ngành hàng</th>
+                                        <th style="text-align: center;">SL Bán</th>
+                                        <th style="text-align: right;">Doanh thu</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topTableBody">
+                                    <!-- Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: CURSOR DEMONSTRATION (sp_MonthlyReport) -->
+            <div id="sectionCursor" style="display: none;">
+                <div class="card" style="margin-bottom: 24px; border: 1px solid var(--info);">
+                    <div class="card-header">
+                        <h3><i class="fas fa-terminal" style="color: var(--info); margin-right: 8px;"></i> Thực thi Stored Procedure chứa Cursor duyệt ngày</h3>
+                    </div>
+                    <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.85rem;">Tháng:</span>
+                            <select id="cursorMonth" class="form-control" style="width: 110px;">
+                                <option value="1">Tháng 1</option><option value="2">Tháng 2</option>
+                                <option value="3">Tháng 3</option><option value="4">Tháng 4</option>
+                                <option value="5">Tháng 5</option><option value="6">Tháng 6</option>
+                                <option value="7">Tháng 7</option><option value="8">Tháng 8</option>
+                                <option value="9">Tháng 9</option><option value="10" selected>Tháng 10</option>
+                                <option value="11">Tháng 11</option><option value="12">Tháng 12</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.85rem;">Năm:</span>
+                            <input type="number" id="cursorYear" class="form-control" style="width: 110px;" value="2026">
+                        </div>
+                        <button class="btn btn-success" onclick="runCursorReport()">
+                            <i class="fas fa-play"></i> Thực thi Cursor <code>sp_MonthlyReport</code>
+                        </button>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px;">
+                        ℹ️ <strong>Mô tả kỹ thuật:</strong> Stored procedure khởi tạo <code>DECLARE cur_Days CURSOR</code> duyệt tuần tự từng ngày trong tháng, tính toán tổng số hóa đơn, doanh thu và số lượng hàng hóa bán ra để tổng hợp số liệu.
+                    </p>
+                </div>
+
+                <!-- Cursor Results Summary -->
+                <div class="kpi-grid" id="cursorSummaryGrid" style="display: none;">
+                    <div class="kpi-card">
+                        <div class="kpi-icon blue"><i class="fas fa-calendar-check"></i></div>
+                        <div class="kpi-info">
+                            <div class="kpi-label">Số ngày có doanh thu</div>
+                            <div class="kpi-value" id="cSumDays">0</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon green"><i class="fas fa-money-bill-wave"></i></div>
+                        <div class="kpi-info">
+                            <div class="kpi-label">Tổng doanh thu tháng</div>
+                            <div class="kpi-value" id="cSumRevenue">0 đ</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon purple"><i class="fas fa-box-check"></i></div>
+                        <div class="kpi-info">
+                            <div class="kpi-label">Tổng SP bán trong tháng</div>
+                            <div class="kpi-value" id="cSumItems">0</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon orange"><i class="fas fa-chart-line"></i></div>
+                        <div class="kpi-info">
+                            <div class="kpi-label">Doanh thu TB / ngày</div>
+                            <div class="kpi-value" id="cSumAvg">0 đ</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cursor Daily Iteration Table -->
+                <div class="card" id="cursorTableCard" style="display: none;">
+                    <div class="card-header">
+                        <h3>Dữ liệu từng bước duyệt của Cursor</h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Ngày</th>
+                                    <th>Thứ</th>
+                                    <th style="text-align: center;">Số hóa đơn</th>
+                                    <th style="text-align: center;">Số lượng hàng đã bán</th>
+                                    <th style="text-align: right;">Doanh thu ngày</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cursorTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/common.js"></script>
+    <script>
+        let revChart = null;
+        let topChart = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = await checkAuth();
+            if (!user) return;
+            initSidebar();
+
+            // Set default dates
+            const now = new Date();
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            document.getElementById('revFromDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('revToDate').value = now.toISOString().split('T')[0];
+            document.getElementById('cursorMonth').value = now.getMonth() + 1;
+            document.getElementById('cursorYear').value = now.getFullYear();
+
+            await loadRevenueReport();
+        });
+
+        function selectReportTab(tab) {
+            document.getElementById('sectionRevenue').style.display = tab === 'revenue' ? 'block' : 'none';
+            document.getElementById('sectionTop').style.display = tab === 'top' ? 'block' : 'none';
+            document.getElementById('sectionCursor').style.display = tab === 'cursor' ? 'block' : 'none';
+
+            document.getElementById('tabBtnRevenue').className = tab === 'revenue' ? 'btn btn-primary' : 'btn btn-outline';
+            document.getElementById('tabBtnTop').className = tab === 'top' ? 'btn btn-primary' : 'btn btn-outline';
+            document.getElementById('tabBtnCursor').className = tab === 'cursor' ? 'btn btn-primary' : 'btn btn-outline';
+
+            if (tab === 'top') loadTopProductsReport();
+        }
+
+        // ================= Tab 1: Revenue Report ================= //
+        async function loadRevenueReport() {
+            showLoading();
+            const from = document.getElementById('revFromDate').value;
+            const to = document.getElementById('revToDate').value;
+
+            try {
+                let url = '/reports/revenue';
+                if (from || to) url += `?fromDate=${from}&toDate=${to}`;
+
+                const res = await api.get(url);
+                if (res.success) {
+                    const data = res.data || [];
+                    renderRevenueUI(data);
+                }
+            } catch (err) {
+                showToast('Lỗi tải báo cáo doanh thu: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderRevenueUI(data) {
+            const tbody = document.getElementById('revTableBody');
+            const total = data.reduce((sum, d) => sum + (d.Revenue || 0), 0);
+            document.getElementById('revTotalSummaryBadge').innerText = 'Tổng: ' + formatCurrency(total);
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">Không có dữ liệu trong khoảng thời gian này.</td></tr>`;
+                renderRevenueChart([]);
+                return;
+            }
+
+            tbody.innerHTML = data.map(d => `
+                <tr>
+                    <td style="font-weight: 500;">${formatDate(d.SalesDate)}</td>
+                    <td style="text-align: center; font-weight: 600;">${d.TotalInvoices}</td>
+                    <td style="text-align: right; color: var(--warning);">${formatCurrency(d.TotalDiscount || 0)}</td>
+                    <td style="text-align: right; font-weight: 700; color: var(--accent);">${formatCurrency(d.Revenue)}</td>
+                </tr>
+            `).join('');
+
+            renderRevenueChart(data);
+        }
+
+        function renderRevenueChart(data) {
+            const ctx = document.getElementById('revChartCanvas').getContext('2d');
+            const sorted = [...data].sort((a, b) => new Date(a.SalesDate) - new Date(b.SalesDate));
+            const labels = sorted.map(d => formatDate(d.SalesDate));
+            const values = sorted.map(d => d.Revenue || 0);
+
+            if (revChart) revChart.destroy();
+
+            revChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Doanh thu (VNĐ)',
+                        data: values,
+                        backgroundColor: 'rgba(14, 165, 233, 0.75)',
+                        borderColor: '#0ea5e9',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: {
+                                color: '#94a3b8',
+                                callback: v => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ================= Tab 2: Top Selling Products ================= //
+        async function loadTopProductsReport() {
+            showLoading();
+            const topN = document.getElementById('topNSelect').value;
+            const from = document.getElementById('revFromDate').value;
+            const to = document.getElementById('revToDate').value;
+
+            try {
+                const res = await api.get(`/reports/top-products?topN=${topN}&fromDate=${from}&toDate=${to}`);
+                if (res.success) {
+                    const products = res.data || [];
+                    renderTopProductsUI(products);
+                }
+            } catch (err) {
+                showToast('Lỗi top sản phẩm: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderTopProductsUI(products) {
+            const tbody = document.getElementById('topTableBody');
+            if (products.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">Không có dữ liệu.</td></tr>`;
+                renderTopProductsChart([]);
+                return;
+            }
+
+            tbody.innerHTML = products.map(p => `
+                <tr>
+                    <td><code>${p.ProductCode}</code></td>
+                    <td style="font-weight: 500;">${p.ProductName}</td>
+                    <td><span class="badge badge-info">${p.CategoryName}</span></td>
+                    <td style="text-align: center; font-weight: 600;">${p.TotalQuantitySold}</td>
+                    <td style="text-align: right; font-weight: 700; color: var(--accent);">${formatCurrency(p.TotalRevenue)}</td>
+                </tr>
+            `).join('');
+
+            renderTopProductsChart(products);
+        }
+
+        function renderTopProductsChart(products) {
+            const ctx = document.getElementById('topProductsCanvas').getContext('2d');
+            const labels = products.map(p => p.ProductName);
+            const revenues = products.map(p => p.TotalRevenue);
+
+            if (topChart) topChart.destroy();
+
+            topChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: revenues,
+                        backgroundColor: [
+                            '#0ea5e9', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6',
+                            '#38bdf8', '#4ade80', '#fbbf24', '#f472b6', '#a78bfa'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        // ================= Tab 3: Cursor Stored Procedure ================= //
+        async function runCursorReport() {
+            showLoading();
+            const month = document.getElementById('cursorMonth').value;
+            const year = document.getElementById('cursorYear').value;
+
+            try {
+                const res = await api.get(`/reports/monthly?year=${year}&month=${month}`);
+                if (res.success && res.data) {
+                    const { daily, summary } = res.data;
+
+                    // Display summary KPIs
+                    document.getElementById('cursorSummaryGrid').style.display = 'grid';
+                    document.getElementById('cSumDays').innerText = summary ? summary.TotalDaysWithSales || 0 : 0;
+                    document.getElementById('cSumRevenue').innerText = formatCurrency(summary ? summary.MonthlyRevenue : 0);
+                    document.getElementById('cSumItems').innerText = (summary ? summary.MonthlyItemsSold || 0 : 0).toLocaleString('vi-VN');
+                    document.getElementById('cSumAvg').innerText = formatCurrency(summary ? summary.AvgDailyRevenue : 0);
+
+                    // Display daily iteration table
+                    document.getElementById('cursorTableCard').style.display = 'block';
+                    const tbody = document.getElementById('cursorTableBody');
+
+                    tbody.innerHTML = (daily || []).map(row => {
+                        const hasSales = row.TotalInvoices > 0;
+                        return `
+                            <tr style="${hasSales ? 'background: rgba(14, 165, 233, 0.08);' : ''}">
+                                <td><strong>${formatDate(row.ReportDate)}</strong></td>
+                                <td>${row.DayOfWeek}</td>
+                                <td style="text-align: center; font-weight: ${hasSales ? '700' : '400'}; color: ${hasSales ? 'var(--accent)' : 'inherit'};">
+                                    ${row.TotalInvoices}
+                                </td>
+                                <td style="text-align: center;">${row.TotalItemsSold}</td>
+                                <td style="text-align: right; font-weight: ${hasSales ? '700' : '400'}; color: ${hasSales ? 'var(--success)' : 'inherit'};">
+                                    ${formatCurrency(row.TotalRevenue)}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    showToast('Đã thực thi thành công Stored Procedure sp_MonthlyReport!');
+                }
+            } catch (err) {
+                showToast('Lỗi chạy cursor: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Store Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="sidebar"></aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="top-bar">
+                <div>
+                    <h1>Tổng quan hoạt động</h1>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Dữ liệu thời gian thực từ StoreManagementDB</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <a href="pages/pos.html" class="btn btn-success">
+                        <i class="fas fa-cash-register"></i> Mở POS Bán hàng
+                    </a>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon green">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <div class="kpi-label">Doanh thu hôm nay</div>
+                        <div class="kpi-value" id="kpiTodayRevenue">0 đ</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon blue">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <div class="kpi-label">Hóa đơn hôm nay</div>
+                        <div class="kpi-value" id="kpiTodayInvoices">0</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon purple">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <div class="kpi-label">Tổng mặt hàng</div>
+                        <div class="kpi-value" id="kpiTotalProducts">0</div>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-icon orange">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="kpi-info">
+                        <div class="kpi-label">Cảnh báo tồn kho</div>
+                        <div class="kpi-value" id="kpiLowStock">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart & Top Products Row -->
+            <div class="grid-2">
+                <!-- Revenue Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-chart-line" style="color: var(--accent); margin-right: 8px;"></i> Doanh thu 7 ngày gần nhất</h3>
+                    </div>
+                    <div style="height: 280px; position: relative;">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Top 5 Products -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-fire" style="color: #ef4444; margin-right: 8px;"></i> Top 5 sản phẩm bán chạy tháng này</h3>
+                        <a href="pages/reports.html" style="font-size: 0.8rem;">Xem tất cả</a>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã SP</th>
+                                    <th>Tên sản phẩm</th>
+                                    <th>ĐVT</th>
+                                    <th>Đã bán</th>
+                                    <th>Doanh thu</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topProductsBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">
+                                        Đang tải dữ liệu...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Action / Status alert -->
+            <div class="card" style="margin-top: 24px;">
+                <div class="card-header">
+                    <h3><i class="fas fa-database" style="color: var(--info); margin-right: 8px;"></i> Minh chứng kỹ thuật môn Database Lab</h3>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 0.85rem;">
+                    <div style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius);">
+                        <strong style="color: var(--accent);">Stored Procedures:</strong>
+                        <p style="color: var(--text-muted); margin-top: 4px;"><code>sp_GetDashboardStats</code>, <code>sp_CreateInvoice</code>, <code>sp_ImportGoods</code></p>
+                    </div>
+                    <div style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius);">
+                        <strong style="color: var(--success);">Views:</strong>
+                        <p style="color: var(--text-muted); margin-top: 4px;"><code>vw_RevenueByDate</code>, <code>vw_ProductStock</code>, <code>vw_EmployeeSales</code></p>
+                    </div>
+                    <div style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius);">
+                        <strong style="color: var(--warning);">UDF & Cursor:</strong>
+                        <p style="color: var(--text-muted); margin-top: 4px;"><code>fn_GetTopSellingProducts</code>, <code>sp_MonthlyReport</code> (Cursor)</p>
+                    </div>
+                    <div style="padding: 10px; background: var(--bg-tertiary); border-radius: var(--radius);">
+                        <strong style="color: #ec4899;">Triggers & Indexes:</strong>
+                        <p style="color: var(--text-muted); margin-top: 4px;"><code>trg_PreventDeleteInvoice</code>, <code>trg_AutoCreateInventory</code></p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/common.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

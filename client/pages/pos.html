@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điểm Bán Hàng (POS) - Store Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <aside id="sidebar" class="sidebar"></aside>
+
+        <main class="main-content" style="padding-bottom: 10px;">
+            <div class="top-bar" style="margin-bottom: 16px;">
+                <div>
+                    <h1>Quầy Thu Ngân (POS)</h1>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Giao dịch thanh toán tự động qua Stored Procedure <code>sp_CreateInvoice</code></p>
+                </div>
+                <div>
+                    <span id="cashierBadge" class="badge badge-info" style="font-size: 0.85rem; padding: 6px 14px;">
+                        <i class="fas fa-user-circle"></i> Thu ngân: Đang nạp...
+                    </span>
+                </div>
+            </div>
+
+            <!-- POS Split Layout -->
+            <div class="pos-layout">
+                <!-- Left: Product Selection -->
+                <div class="pos-products">
+                    <div class="filter-bar" style="margin-bottom: 12px;">
+                        <div class="search-input">
+                            <i class="fas fa-barcode"></i>
+                            <input type="text" id="posSearchInput" placeholder="Quét barcode hoặc gõ tên sản phẩm..." autofocus>
+                        </div>
+                        <select id="posCategoryFilter" class="form-control" style="width: 180px;">
+                            <option value="">-- Tất cả nhóm --</option>
+                        </select>
+                    </div>
+
+                    <div class="product-grid" id="posProductGrid">
+                        <!-- Product cards rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Right: Cart & Checkout -->
+                <div class="pos-cart">
+                    <div class="pos-cart-header">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span><i class="fas fa-shopping-cart"></i> Giỏ hàng (<span id="cartCount">0</span>)</span>
+                            <button class="btn btn-outline btn-sm" onclick="clearCart()" style="color: var(--danger);">
+                                <i class="fas fa-trash-alt"></i> Xóa giỏ
+                            </button>
+                        </div>
+
+                        <!-- Customer Phone Lookup -->
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="customerPhoneInput" class="form-control" placeholder="SĐT khách hàng (09...)" style="font-size: 0.8rem; padding: 6px 10px;">
+                            <button class="btn btn-primary btn-sm" onclick="lookupCustomer()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <div id="customerInfoDisplay" style="font-size: 0.75rem; margin-top: 6px; color: var(--accent); min-height: 18px;">
+                            <i class="fas fa-user"></i> Khách hàng: <strong>Khách vãng lai</strong>
+                        </div>
+                    </div>
+
+                    <!-- Cart Item Rows -->
+                    <div class="pos-cart-items" id="cartItemsContainer">
+                        <div class="empty-state" style="padding: 40px 10px;">
+                            <i class="fas fa-cart-arrow-down" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                            <p style="margin-top: 8px;">Giỏ hàng đang trống.<br>Nhấp vào sản phẩm để chọn mua.</p>
+                        </div>
+                    </div>
+
+                    <!-- Cart Summary & Actions -->
+                    <div class="pos-cart-footer">
+                        <div class="pos-summary-row">
+                            <span>Tạm tính:</span>
+                            <strong id="summarySubTotal">0 đ</strong>
+                        </div>
+                        <div class="pos-summary-row">
+                            <span>Giảm giá (VNĐ):</span>
+                            <input type="number" id="discountInput" class="form-control" value="0" min="0" step="1000" style="width: 120px; text-align: right; padding: 4px 8px; font-size: 0.85rem;" onchange="updateCartTotals()">
+                        </div>
+                        <div class="pos-summary-row total">
+                            <span>TỔNG CỘNG:</span>
+                            <span id="summaryTotalAmount">0 đ</span>
+                        </div>
+
+                        <div style="margin-top: 12px;">
+                            <label class="form-label" style="margin-bottom: 4px;">Hình thức thanh toán</label>
+                            <select id="paymentMethodSelect" class="form-control">
+                                <option value="Tiền mặt">💵 Tiền mặt</option>
+                                <option value="Chuyển khoản">📱 Chuyển khoản (VietQR)</option>
+                                <option value="Thẻ POS">💳 Thẻ POS</option>
+                                <option value="Ví điện tử">👛 Ví điện tử (Momo/ZaloPay)</option>
+                            </select>
+                        </div>
+
+                        <button id="btnCheckout" class="pos-checkout-btn" onclick="handleCheckout()">
+                            <i class="fas fa-check-circle"></i> THANH TOÁN (F9)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Receipt / Invoice Modal (Printable) -->
+    <div id="receiptModal" class="modal-overlay">
+        <div class="modal" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>Hóa Đơn Thanh Toán</h3>
+                <button class="modal-close" onclick="closeModal('receiptModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="receiptPrintArea" style="font-size: 0.85rem;">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('receiptModal')">Đóng</button>
+                <button class="btn btn-primary" onclick="printReceipt()">
+                    <i class="fas fa-print"></i> In Hóa Đơn
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/common.js"></script>
+    <script src="../js/pos.js"></script>
+</body>
+</html>
